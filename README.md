@@ -1,14 +1,18 @@
 # dsh-peekedit
 
-Enhanced file tools for [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek-Harness) (`dsh`).
+Enhanced file tools **and a file browser** for [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek-Harness) (`dsh`).
 
-Three model-facing tools that complement (and never shadow) the built-in `read` / `write` / `edit` tools, sharing the same `ctx.fs` service, `fs/*` policy events, and sandbox enforcement:
+## What you get
+
+**Model-facing tools** that complement (and never shadow) the built-in `read` / `write` / `edit` tools, sharing the same `ctx.fs` service, `fs/*` policy events, and sandbox enforcement:
 
 | Tool | Purpose |
 |---|---|
 | `peek` | View a file with a line window (`view_range`) or a directory up to 2 levels deep. Numbered lines, total-line count, and a clipping notice on long output. |
 | `peek_edit` | Mutate an existing file: unique-literal `str_replace` or line `insert`. |
 | `peek_write` | Create a new file or overwrite an existing one. |
+
+**File browser UI** (Web Client): a "📁 文件" button in the session header opens a side drawer showing the current session's workspace directory — click into folders, click a file to preview it, and edit + save right there. Reads and writes go through the same `ctx.fs` seam; the browser never bypasses sandbox or containment rules (paths are resolved inside the session workspace and `..` escapes are rejected).
 
 Everything goes through the mounted `ctx.fs` backend and the `fs/*` event gate, so sandbox fencing, read-before-edit policy, and remote filesystem backends work exactly as they do for the built-in tools.
 
@@ -22,13 +26,15 @@ dsh plugin --profile web add ./dsh-peekedit      # from a checkout / tarball
 dsh plugin --profile web add github:you/dsh-peekedit
 ```
 
+> The browser half of the plugin (`dsh.client` bundle) is discovered only when the package resolves from the profile's dependency tree, so install it with `dsh plugin add` rather than a `file://` patch overlay.
+
 Verify the layer before booting:
 
 ```sh
 dsh --profile web --dump-config
 ```
 
-Or load it ad hoc with a patch overlay:
+Or load it ad hoc with a patch overlay (tools only — the browser half needs a real install):
 
 ```sh
 dsh web --patch ./cordis.patch.yml
@@ -40,65 +46,53 @@ Git installs run the package's `prepare` script (tsdown build) — allow it once
 
 ## Configuration
 
-All keys are optional:
+The bundle inserts two plugin rows; each takes its own config.
+
+`dsh-peekedit` (tools):
 
 | Key | Default | Meaning |
 |---|---:|---|
 | `maxOutputChars` | `16000` | Characters retained for a `peek` file view before the clipping notice. |
 
+`dsh-peekedit/api` (file-browser API, web compositions only):
+
+| Key | Default | Meaning |
+|---|---:|---|
+| `root` | `process.cwd()` | Fallback browse root when no session cwd resolves. |
+| `maxReadChars` | `1000000` | Characters a browser preview read returns; larger files report `FS_TOO_LARGE`. |
+
 ```yaml
 # cordis.patch.yml (your profile / home layer)
-- id: tool-peekedit
+- id: api-peekedit
   config:
-    maxOutputChars: 32000
+    root: 'H:/myproject'
+    maxReadChars: 200000
 ```
 
-## Tools
+## Browser API
 
-### `peek` — view a file or directory
+Same-origin routes under `/api/peekedit/*` (registered only where a `webServer` is mounted):
 
-```jsonc
-{
-  "path": "/repo/src/index.ts",
-  "view_range": [11, 40]      // optional; [start, -1] reads to EOF
-}
-```
+| Route | Purpose |
+|---|---|
+| `GET /api/peekedit/list?session=<id>&path=<rel>` | One directory's children, relative to the session workspace. |
+| `GET /api/peekedit/read?session=<id>&path=<rel>` | A file's UTF-8 content (binary rejected, size-capped). |
+| `POST /api/peekedit/write` | Replace a file's content; rejects cross-origin `Origin` headers. |
 
-File views return numbered lines (`cat -n` style) with a total-line header; directory views list entries 2 levels deep, excluding hidden items, `node_modules`, and Python cache directories, sorted by path. Long output is truncated with a `<response clipped>` notice. Reads emit `fs/observed`, so the read-before-edit policy (when mounted) recognizes the target as observed.
-
-### `peek_edit` — modify an existing file
-
-```jsonc
-{ "command": "str_replace", "path": "/repo/src/index.ts", "old_str": "foo", "new_str": "bar" }
-{ "command": "insert", "path": "/repo/src/index.ts", "insert_line": 12, "new_str": "const x = 1" }
-```
-
-- `str_replace` requires the `old_str` literal to match **exactly once**; zero matches (`FS_EDIT_NOT_FOUND`) and ambiguous matches (`FS_AMBIGUOUS_EDIT`, with the offending line numbers) are reported as errors, never silently applied.
-- `insert` inserts after the zero-based `insert_line` (range `[0, lineCount]`) without an implicit trailing newline.
-- Mutations run through the `fs/edit-intent` waterfall and are written version-guarded (`replaceIfVersion`), so a stale edit after an external change fails instead of clobbering it.
-
-### `peek_write` — create or overwrite
-
-```jsonc
-{ "command": "create", "path": "/repo/new.ts", "file_text": "export const x = 1" }
-{ "command": "overwrite", "path": "/repo/old.ts", "file_text": "..." }
-```
-
-- `create` refuses when the path already exists (`createIfAbsent`).
-- `overwrite` replaces the whole file content with a version guard (`replaceIfVersion`).
-- Both run through the `fs/write-intent` waterfall.
+Paths resolve against the calling session's `cwd` (fallback: `root` config) and must stay inside it — `..` segments and containment escapes are `403 PATH_ESCAPE`.
 
 ## Requirements
 
 - Node.js ≥ 20
 - DeepSeek Harness with the `@deepseek-ai/dsh-*` `0.1.0-rc.6` packages (or newer) reachable from the profile's dependency tree
+- The Web Client bundle ships a browser half that needs React 18 (the platform word table provides it)
 
 ## Development
 
 ```sh
 npm install
-npm test          # vitest unit + integration suites
-npm run build     # tsdown → lib/
+npm test          # vitest unit + integration suites (host API + client bundle)
+npm run build     # tsdown → lib/ (host entries + browser bundle)
 ```
 
 ## License

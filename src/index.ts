@@ -1,12 +1,10 @@
 /**
- * dsh-peekedit — enhanced file tools for DeepSeek Harness.
+ * dsh-peekedit — enhanced file tools and file browser for DeepSeek Harness.
  *
- * Registers three model-facing tools over the Harness filesystem seam:
- * `peek` (windowed view), `peek_edit` (literal replace / insert),
- * `peek_write` (create / overwrite). All reads and mutations flow through
- * `ctx.fs` and the `fs/*` event gate, so sandbox fencing, read-before-edit
- * policy, and remote backends behave exactly as they do for the built-in
- * `read` / `write` / `edit` tools.
+ * Host plugin: registers three model-facing tools (`peek`, `peek_edit`,
+ * `peek_write`) over the `ctx.fs` seam. The file-browser API lives in the
+ * separate `dsh-peekedit/api` entry (see `./api.ts`), which activates only
+ * where a `webServer` service is mounted.
  * @module dsh-peekedit
  */
 

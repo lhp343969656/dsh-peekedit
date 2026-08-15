@@ -1,6 +1,9 @@
-# dsh-peekedit bundle layer: registers the peek / peek_edit / peek_write
-# file tools. Installed via `dsh plugin --profile <name> add dsh-peekedit`;
-# the plugin row references the package by name so Node resolution finds it.
+# dsh-peekedit bundle layer: registers the peek / peek_edit / peek_write file
+# tools and, where a web server is mounted, the file-browser API entry.
+# Installed via `dsh plugin --profile <name> add dsh-peekedit`; the plugin
+# rows reference the package by name so Node resolution finds it.
 - insert:
     - id: tool-peekedit
       name: dsh-peekedit
+    - id: api-peekedit
+      name: dsh-peekedit/api
