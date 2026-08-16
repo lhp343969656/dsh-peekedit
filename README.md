@@ -1,6 +1,11 @@
 # dsh-peekedit
 
+[![npm version](https://img.shields.io/npm/v/dsh-peekedit.svg)](https://www.npmjs.com/package/dsh-peekedit)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Enhanced file tools **and a file browser** for [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek-Harness) (`dsh`).
+
+Source: <https://github.com/you/dsh-peekedit> · Issues: <https://github.com/you/dsh-peekedit/issues>
 
 ## What you get
 
@@ -18,12 +23,19 @@ Everything goes through the mounted `ctx.fs` backend and the `fs/*` event gate, 
 
 ## Install
 
-The package ships a `dsh.bundle` manifest, so it installs as a plugin bundle into a profile:
+The package ships a `dsh.bundle` manifest, so it installs as a plugin bundle into a profile.
+
+**Recommended** — from npm:
 
 ```sh
-dsh plugin --profile web add dsh-peekedit        # from npm
-dsh plugin --profile web add ./dsh-peekedit      # from a checkout / tarball
+dsh plugin --profile web add dsh-peekedit
+```
+
+Alternatively, from a git repository (builds on install via the `prepare` script) or a local checkout / tarball:
+
+```sh
 dsh plugin --profile web add github:you/dsh-peekedit
+dsh plugin --profile web add ./dsh-peekedit
 ```
 
 > The browser half of the plugin (`dsh.client` bundle) is discovered only when the package resolves from the profile's dependency tree, so install it with `dsh plugin add` rather than a `file://` patch overlay.
