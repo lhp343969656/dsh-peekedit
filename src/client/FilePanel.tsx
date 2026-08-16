@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import { listDir, readFile, writeFile } from './api.ts'
 import type { DirEntry } from './api.ts'
 
@@ -19,6 +20,11 @@ function childPath(dir: string, name: string): string {
 /** Split a rel path into breadcrumb segments. */
 function segmentsOf(dir: string): string[] {
   return dir.length === 0 ? [] : dir.split('/')
+}
+
+/** Whether a path is a Markdown file (rendered instead of raw text). */
+function isMarkdownFile(path: string): boolean {
+  return /\.(md|markdown)$/i.test(path)
 }
 
 /** The preview area may take any height; only negatives are rejected. */
@@ -153,6 +159,14 @@ const styles = {
     fontFamily: 'var(--ds-font-family-code)',
     color: 'var(--dsw-alias-label-primary)',
     background: 'var(--dsw-alias-markdown-code-block)',
+  },
+  markdown: {
+    flex: 1,
+    overflow: 'auto',
+    padding: '4px 12px 12px',
+    background: 'var(--dsw-alias-bg-base)',
+    fontSize: 13,
+    lineHeight: 1.6,
   },
   textarea: {
     margin: 0,
@@ -328,7 +342,9 @@ export function FilePanel({ sessionId }: { sessionId: string }): React.ReactNode
           </div>
           {editing
             ? <textarea style={styles.textarea} value={draft} onChange={event => setDraft(event.target.value)} spellCheck={false} />
-            : <pre style={styles.pre}>{content}</pre>}
+            : isMarkdownFile(selected)
+              ? <div style={styles.markdown}><MarkdownText text={content} /></div>
+              : <pre style={styles.pre}>{content}</pre>}
         </div>
       )}
     </div>
