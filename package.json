@@ -13,11 +13,11 @@
   "author": "liuhaipeng",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/you/dsh-peekedit.git"
+    "url": "git+https://github.com/lhp343969656/dsh-peekedit.git"
   },
-  "homepage": "https://github.com/you/dsh-peekedit#readme",
+  "homepage": "https://github.com/lhp343969656/dsh-peekedit#readme",
   "bugs": {
-    "url": "https://github.com/you/dsh-peekedit/issues"
+    "url": "https://github.com/lhp343969656/dsh-peekedit/issues"
   },
   "engines": {
     "node": ">=20"

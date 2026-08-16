@@ -5,7 +5,7 @@
 
 Enhanced file tools **and a file browser** for [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek-Harness) (`dsh`).
 
-Source: <https://github.com/you/dsh-peekedit> · Issues: <https://github.com/you/dsh-peekedit/issues>
+Source: <https://github.com/lhp343969656/dsh-peekedit> · Issues: <https://github.com/lhp343969656/dsh-peekedit/issues>
 
 ## What you get
 
@@ -34,7 +34,7 @@ dsh plugin --profile web add dsh-peekedit
 Alternatively, from a git repository (builds on install via the `prepare` script) or a local checkout / tarball:
 
 ```sh
-dsh plugin --profile web add github:you/dsh-peekedit
+dsh plugin --profile web add github:lhp343969656/dsh-peekedit
 dsh plugin --profile web add ./dsh-peekedit
 ```
 
