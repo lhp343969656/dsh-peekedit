@@ -21,9 +21,9 @@ function segmentsOf(dir: string): string[] {
   return dir.length === 0 ? [] : dir.split('/')
 }
 
-/** Clamp the preview height into the draggable range. */
-function clampPreviewHeight(px: number): number {
-  return Math.min(560, Math.max(120, Math.round(px)))
+/** The preview area may take any height; only negatives are rejected. */
+function sanitizePreviewHeight(px: number): number {
+  return Math.max(0, Math.round(px))
 }
 
 const styles = {
@@ -57,7 +57,7 @@ const styles = {
   crumbSep: { color: 'var(--dsw-alias-label-tertiary)' },
   tree: {
     flex: 1,
-    minHeight: 80,
+    minHeight: 0,
     overflow: 'auto',
     padding: 6,
   },
@@ -82,8 +82,10 @@ const styles = {
     color: 'var(--dsw-alias-state-error-primary)',
     whiteSpace: 'pre-wrap' as const,
   },
+  // Divider strip mirrors the frame's column drag handles: an 8px hot strip
+  // with a centered pill that appears on hover/drag.
   divider: {
-    height: 7,
+    height: 8,
     cursor: 'row-resize',
     display: 'flex',
     alignItems: 'center',
@@ -91,10 +93,20 @@ const styles = {
     touchAction: 'none' as const,
     flexShrink: 0,
   },
-  dividerLine: {
-    width: '100%',
-    height: 1,
-    background: 'var(--dsw-alias-border-l2)',
+  dividerPill: {
+    width: 32,
+    height: 12,
+    borderRadius: 10,
+    boxSizing: 'border-box' as const,
+    background: 'var(--dsw-alias-button-floating-fill)',
+    border: '1px solid var(--dsw-alias-border-l2-darkmode-thin)',
+    opacity: 0,
+    transition: 'opacity var(--ds-transition-duration-slow) var(--ds-ease-in-out)',
+  },
+  dividerPillVisible: {
+    opacity: 1,
+    background: 'var(--dsw-alias-button-floating-hover)',
+    borderColor: 'var(--dsw-alias-border-l3)',
   },
   preview: {
     display: 'flex',
@@ -170,6 +182,7 @@ export function FilePanel({ sessionId }: { sessionId: string }): React.ReactNode
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | undefined>()
   const [previewHeight, setPreviewHeight] = useState(240)
+  const [dividerActive, setDividerActive] = useState(false)
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null)
 
   const loadDir = useCallback(async (next: string): Promise<void> => {
@@ -231,18 +244,21 @@ export function FilePanel({ sessionId }: { sessionId: string }): React.ReactNode
   }
 
   // Vertical drag between the tree and the content area (pointer capture on
-  // the divider, mirroring the frame's column drag handles).
+  // the divider, mirroring the frame's column drag handles). No size limits:
+  // either area may take the whole panel.
   const onDividerPointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
     event.preventDefault()
     event.currentTarget.setPointerCapture(event.pointerId)
     dragRef.current = { startY: event.clientY, startHeight: previewHeight }
+    setDividerActive(true)
   }
   const onDividerPointerMove = (event: React.PointerEvent<HTMLDivElement>): void => {
     if (dragRef.current === null) return
-    setPreviewHeight(clampPreviewHeight(dragRef.current.startHeight + (dragRef.current.startY - event.clientY)))
+    setPreviewHeight(sanitizePreviewHeight(dragRef.current.startHeight + (dragRef.current.startY - event.clientY)))
   }
   const onDividerPointerUp = (): void => {
     dragRef.current = null
+    setDividerActive(false)
   }
 
   const sorted = [...entries].sort((left, right) =>
@@ -289,8 +305,10 @@ export function FilePanel({ sessionId }: { sessionId: string }): React.ReactNode
         onPointerMove={onDividerPointerMove}
         onPointerUp={onDividerPointerUp}
         onPointerCancel={onDividerPointerUp}
+        onMouseEnter={() => setDividerActive(true)}
+        onMouseLeave={() => { if (dragRef.current === null) setDividerActive(false) }}
       >
-        <div style={styles.dividerLine} />
+        <div style={dividerActive ? { ...styles.dividerPill, ...styles.dividerPillVisible } : styles.dividerPill} />
       </div>
       {selected !== undefined && (
         <div style={{ ...styles.preview, height: previewHeight }}>
