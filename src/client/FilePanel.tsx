@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import { listDir, readFile, writeFile } from './api.ts'
 import type { DirEntry } from './api.ts'
+import { ArrowUpIcon, ChevronRightIcon, DocumentIcon, FileIcon } from './icons.tsx'
 
 /** Combine a relative directory and an entry name into a child rel path. */
 function childPath(dir: string, name: string): string {
@@ -20,6 +21,12 @@ function childPath(dir: string, name: string): string {
 /** Split a rel path into breadcrumb segments. */
 function segmentsOf(dir: string): string[] {
   return dir.length === 0 ? [] : dir.split('/')
+}
+
+/** The parent of a rel path ('' at the root). */
+function parentOf(dir: string): string {
+  const parts = segmentsOf(dir)
+  return parts.slice(0, -1).join('/')
 }
 
 /** Whether a path is a Markdown file (rendered instead of raw text). */
@@ -46,47 +53,68 @@ const styles = {
   breadcrumbs: {
     display: 'flex',
     alignItems: 'center',
-    gap: 4,
-    padding: '8px 12px',
+    gap: 2,
+    padding: '7px 10px',
     borderBottom: '1px solid var(--dsw-alias-border-l2)',
     flexWrap: 'wrap' as const,
+    background: 'var(--dsw-alias-bg-layer-1)',
   },
   crumb: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 3,
     background: 'none',
     border: 'none',
-    color: 'var(--dsw-alias-state-business-primary)',
+    color: 'var(--dsw-alias-label-secondary)',
     cursor: 'pointer',
-    padding: '2px 4px',
+    padding: '3px 5px',
+    borderRadius: 5,
     fontSize: 12,
     fontFamily: 'inherit',
+    maxWidth: 180,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap' as const,
   },
-  crumbSep: { color: 'var(--dsw-alias-label-tertiary)' },
+  crumbCurrent: { color: 'var(--dsw-alias-label-primary)', fontWeight: 500 },
+  crumbSep: { color: 'var(--dsw-alias-label-tertiary)', display: 'flex' },
   tree: {
     flex: 1,
     minHeight: 0,
     overflow: 'auto',
-    padding: 6,
+    padding: '6px 6px 10px',
   },
   row: {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
-    padding: '5px 8px',
-    borderRadius: 4,
+    padding: '6px 8px',
+    borderRadius: 6,
     cursor: 'pointer',
     whiteSpace: 'nowrap' as const,
+    borderLeft: '3px solid transparent',
+    color: 'var(--dsw-alias-label-primary)',
+    userSelect: 'none' as const,
   },
-  rowSelected: { background: 'var(--dsw-alias-interactive-bg-active)' },
-  rowName: { overflow: 'hidden', textOverflow: 'ellipsis' },
-  rowSize: { marginLeft: 'auto', color: 'var(--dsw-alias-label-tertiary)', fontSize: 11 },
-  empty: { color: 'var(--dsw-alias-label-tertiary)', padding: 16, textAlign: 'center' as const },
+  rowHover: { background: 'var(--dsw-alias-interactive-bg-hover)' },
+  rowSelected: {
+    background: 'var(--dsw-alias-interactive-bg-active)',
+    borderLeftColor: 'var(--dsw-alias-state-business-primary)',
+  },
+  rowIcon: { display: 'flex', flexShrink: 0, color: 'var(--dsw-alias-label-tertiary)' },
+  rowIconDir: { color: 'var(--dsw-alias-state-business-primary)' },
+  rowName: { overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 },
+  rowSize: { color: 'var(--dsw-alias-label-tertiary)', fontSize: 11, flexShrink: 0 },
+  parentRow: { color: 'var(--dsw-alias-label-secondary)' },
+  empty: { color: 'var(--dsw-alias-label-tertiary)', padding: 20, textAlign: 'center' as const },
   error: {
-    margin: 8,
+    margin: '6px 10px 0',
     padding: '8px 10px',
-    borderRadius: 4,
+    borderRadius: 6,
     background: 'var(--dsw-static-red-50)',
     color: 'var(--dsw-alias-state-error-primary)',
     whiteSpace: 'pre-wrap' as const,
+    fontSize: 12,
   },
   // Divider strip mirrors the frame's column drag handles: an 8px hot strip
   // with a centered pill that appears on hover/drag.
@@ -129,33 +157,59 @@ const styles = {
     background: 'var(--dsw-alias-bg-layer-2)',
     borderBottom: '1px solid var(--dsw-alias-border-l2)',
   },
-  previewPath: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--dsw-alias-label-secondary)' },
+  previewTitle: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+    minWidth: 0,
+  },
+  previewPath: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap' as const,
+    color: 'var(--dsw-alias-label-secondary)',
+    fontSize: 12,
+  },
+  previewBadge: {
+    flexShrink: 0,
+    padding: '1px 7px',
+    borderRadius: 8,
+    background: 'var(--dsw-alias-markdown-code-block)',
+    color: 'var(--dsw-alias-label-tertiary)',
+    fontSize: 10,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.4,
+  },
   button: {
     background: 'var(--dsw-alias-state-business-primary)',
     border: 'none',
     color: '#fff',
-    borderRadius: 4,
-    padding: '4px 10px',
+    borderRadius: 5,
+    padding: '3px 10px',
     cursor: 'pointer',
     fontSize: 12,
     fontFamily: 'inherit',
+    flexShrink: 0,
   },
   buttonGhost: {
     background: 'none',
     border: '1px solid var(--dsw-alias-border-l3)',
     color: 'var(--dsw-alias-label-secondary)',
-    borderRadius: 4,
-    padding: '4px 10px',
+    borderRadius: 5,
+    padding: '3px 10px',
     cursor: 'pointer',
     fontSize: 12,
     fontFamily: 'inherit',
+    flexShrink: 0,
   },
   pre: {
     margin: 0,
-    padding: 10,
+    padding: '10px 12px',
     overflow: 'auto',
     whiteSpace: 'pre' as const,
     fontSize: 12,
+    lineHeight: 1.6,
     fontFamily: 'var(--ds-font-family-code)',
     color: 'var(--dsw-alias-label-primary)',
     background: 'var(--dsw-alias-markdown-code-block)',
@@ -163,7 +217,7 @@ const styles = {
   markdown: {
     flex: 1,
     overflow: 'auto',
-    padding: '4px 12px 12px',
+    padding: '4px 14px 14px',
     background: 'var(--dsw-alias-bg-base)',
     fontSize: 13,
     lineHeight: 1.6,
@@ -178,9 +232,43 @@ const styles = {
     color: 'var(--dsw-alias-label-primary)',
     fontFamily: 'var(--ds-font-family-code)',
     fontSize: 12,
+    lineHeight: 1.6,
     whiteSpace: 'pre' as const,
     flex: 1,
   },
+}
+
+/** One tree row with hover state (inline styles have no :hover). */
+function FileRow({
+  entry, selected, onOpen,
+}: {
+  entry: DirEntry
+  selected: boolean
+  onOpen: () => void
+}): React.ReactNode {
+  const [hovered, setHovered] = useState(false)
+  const isDir = entry.type === 'directory'
+  return (
+    <div
+      style={
+        selected
+          ? { ...styles.row, ...styles.rowSelected }
+          : hovered
+            ? { ...styles.row, ...styles.rowHover }
+            : styles.row
+      }
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={onOpen}
+      title={entry.name}
+    >
+      <span style={isDir ? { ...styles.rowIcon, ...styles.rowIconDir } : styles.rowIcon}>
+        {isDir ? <FileIcon /> : <DocumentIcon />}
+      </span>
+      <span style={styles.rowName}>{entry.name}</span>
+      {!isDir && entry.size !== undefined && <span style={styles.rowSize}>{entry.size} B</span>}
+    </div>
+  )
 }
 
 /** The file browser tool page. */
@@ -280,14 +368,29 @@ export function FilePanel({ sessionId }: { sessionId: string }): React.ReactNode
       ? left.name.localeCompare(right.name)
       : left.type === 'directory' ? -1 : 1)
 
+  const segments = segmentsOf(dir)
+  const extension = selected === undefined ? '' : selected.split('.').pop() ?? ''
+
   return (
     <div style={styles.root}>
       <div style={styles.breadcrumbs}>
-        <button style={styles.crumb} onClick={() => void loadDir('')}>根目录</button>
-        {segmentsOf(dir).map((segment, index) => (
-          <span key={`${index}-${segment}`} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={styles.crumbSep}>/</span>
-            <button style={styles.crumb} onClick={() => void loadDir(segmentsOf(dir).slice(0, index + 1).join('/'))}>
+        <button
+          type="button"
+          style={dir.length === 0 ? { ...styles.crumb, ...styles.crumbCurrent } : styles.crumb}
+          onClick={() => void loadDir('')}
+          title={root || '根目录'}
+        >
+          根目录
+        </button>
+        {segments.map((segment, index) => (
+          <span key={`${index}-${segment}`} style={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+            <span style={styles.crumbSep}><ChevronRightIcon /></span>
+            <button
+              type="button"
+              style={index === segments.length - 1 ? { ...styles.crumb, ...styles.crumbCurrent } : styles.crumb}
+              onClick={() => void loadDir(segments.slice(0, index + 1).join('/'))}
+              title={segments.slice(0, index + 1).join('/')}
+            >
               {segment}
             </button>
           </span>
@@ -297,20 +400,29 @@ export function FilePanel({ sessionId }: { sessionId: string }): React.ReactNode
       <div style={styles.tree}>
         {loading && entries.length === 0 ? <div style={styles.empty}>加载中…</div>
           : sorted.length === 0 ? <div style={styles.empty}>空目录</div>
-            : sorted.map(entry => (
-              <div
-                key={entry.name}
-                style={selected === childPath(dir, entry.name) ? { ...styles.row, ...styles.rowSelected } : styles.row}
-                onClick={() => openEntry(entry)}
-                title={entry.type === 'directory' ? '打开目录' : '预览文件'}
-              >
-                <span>{entry.type === 'directory' ? '📁' : '📄'}</span>
-                <span style={styles.rowName}>{entry.name}</span>
-                {entry.type === 'file' && entry.size !== undefined && (
-                  <span style={styles.rowSize}>{entry.size} B</span>
+            : (
+              <>
+                {dir.length > 0 && (
+                  <div
+                    style={{ ...styles.row, ...styles.parentRow }}
+                    onMouseEnter={event => { event.currentTarget.style.background = 'var(--dsw-alias-interactive-bg-hover)' }}
+                    onMouseLeave={event => { event.currentTarget.style.background = 'transparent' }}
+                    onClick={() => void loadDir(parentOf(dir))}
+                  >
+                    <span style={styles.rowIcon}><ArrowUpIcon /></span>
+                    <span style={styles.rowName}>上级目录</span>
+                  </div>
                 )}
-              </div>
-            ))}
+                {sorted.map(entry => (
+                  <FileRow
+                    key={entry.name}
+                    entry={entry}
+                    selected={selected === childPath(dir, entry.name)}
+                    onOpen={() => openEntry(entry)}
+                  />
+                ))}
+              </>
+            )}
       </div>
       <div
         style={styles.divider}
@@ -327,9 +439,13 @@ export function FilePanel({ sessionId }: { sessionId: string }): React.ReactNode
       {selected !== undefined && (
         <div style={{ ...styles.preview, height: previewHeight }}>
           <div style={styles.previewHeader}>
-            <span style={styles.previewPath}>{selected}</span>
+            <span style={styles.previewTitle}>
+              <span style={styles.rowIcon}><DocumentIcon /></span>
+              <span style={styles.previewPath}>{selected}</span>
+              {!isMarkdownFile(selected) && extension.length > 0 && <span style={styles.previewBadge}>{extension}</span>}
+            </span>
             {!editing && (
-              <button style={styles.button} onClick={() => { setDraft(content); setEditing(true) }}>编辑</button>
+              <button style={styles.buttonGhost} onClick={() => { setDraft(content); setEditing(true) }}>编辑</button>
             )}
             {editing && (
               <button style={styles.button} disabled={saving} onClick={() => void save()}>

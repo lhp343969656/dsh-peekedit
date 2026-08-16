@@ -33,3 +33,31 @@ export function ToolsIcon(): ReactNode {
     </svg>
   )
 }
+
+/** Document icon (file rows). */
+export function DocumentIcon(): ReactNode {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden {...stroke}>
+      <path d="M4 1.5h5.2L12.5 5v9.5h-8.5v-13z" />
+      <path d="M9 1.5V5h3.5M6 8h4M6 10.5h4" />
+    </svg>
+  )
+}
+
+/** Arrow-up icon (parent-directory row). */
+export function ArrowUpIcon(): ReactNode {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden {...stroke}>
+      <path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" />
+    </svg>
+  )
+}
+
+/** Chevron-right icon (breadcrumb separator). */
+export function ChevronRightIcon(): ReactNode {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden {...stroke}>
+      <path d="M6 3.5 10.5 8 6 12.5" />
+    </svg>
+  )
+}
