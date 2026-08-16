@@ -1,10 +1,12 @@
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
+import SandboxedFileSystem from '@deepseek-ai/dsh-fs-sandbox'
 import WebServer from '@deepseek-ai/dsh-host-webserver'
+import SandboxPolicy, { setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
 import { SessionStore } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
@@ -18,15 +20,27 @@ afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true })
 })
 
-async function setup(config: PeekeditApi.Config = {}) {
-  const root = await mkdtemp(join(tmpdir(), 'dsh-peekedit-api-'))
+async function setup(config: PeekeditApi.Config = {}, options: { sandbox?: boolean } = {}) {
+  // Writable sandbox roots always include the system temp dir, so the
+  // sandbox scenario builds its trees OUTSIDE tmpdir to make refusals real.
+  const baseDir = options.sandbox ? dirname(tmpdir()) : tmpdir()
+  const root = await mkdtemp(join(baseDir, 'dsh-peekedit-api-'))
   roots.push(root)
   const ctx = new Context()
   contexts.push(ctx)
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(SessionStore)
-  await ctx.plugin(LocalFileSystem, { cwd: root })
+  if (!options.sandbox) {
+    await ctx.plugin(LocalFileSystem, { cwd: root })
+  } else {
+    // The sandbox root is a subdirectory: files inside it are writable under
+    // workspace-write, siblings are not.
+    const sandboxRoot = join(root, 'work')
+    await mkdir(sandboxRoot, { recursive: true })
+    await ctx.plugin(SandboxPolicy, { mode: 'workspace-write', workspaceRoot: sandboxRoot })
+    await ctx.plugin(SandboxedFileSystem, { cwd: root })
+  }
   await ctx.plugin(WebServer, { host: '127.0.0.1', port: 0 })
   await ctx.plugin(PeekeditApi, { root, ...config })
   const session = ctx.sessions.create(undefined, { meta: { cwd: root } })
@@ -193,3 +207,40 @@ describe('file-browser API', () => {
     expect(response.status).toBe(404)
   })
 })
+
+describe('sandbox policy on writes', () => {
+  it('uses the config root without a session and the session cwd with one', async () => {
+    // The sandbox config root is a subdirectory (work); the session cwd is
+    // the browse root (the temp root itself).
+    const { base, root, session } = await setup({}, { sandbox: true })
+    await writeFile(join(root, 'work', 'inside.txt'), 'a')
+    await writeFile(join(root, 'outside.txt'), 'b')
+    const post = (body: object) => fetch(`${base}/api/peekedit/write`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+    // Without a session the write boundary is the config root (work/):
+    // inside it writes, outside is denied.
+    const inside = await post({ path: 'work/inside.txt', content: 'a2' })
+    expect(inside.status).toBe(200)
+    const outside = await post({ path: 'outside.txt', content: 'b2' })
+    expect(outside.status).toBe(403)
+    expect((await json<{ error: { code: string } }>(outside)).error.code).toBe('FS_SANDBOX_DENIED')
+
+    // With a session the boundary follows the session cwd (the browse root),
+    // so sibling files become writable — the "can see but cannot write"
+    // mismatch disappears.
+    const withSession = await post({ session: session.id, path: 'outside.txt', content: 'b3' })
+    expect(withSession.status).toBe(200)
+    expect(await readFile(join(root, 'outside.txt'), 'utf8')).toBe('b3')
+
+    // Raising the session mode to danger-full-access lifts the boundary.
+    setSandboxMode(session, 'danger-full-access')
+    const lifted = await post({ session: session.id, path: 'outside.txt', content: 'b4' })
+    expect(lifted.status).toBe(200)
+    expect(await readFile(join(root, 'outside.txt'), 'utf8')).toBe('b4')
+  })
+})
+

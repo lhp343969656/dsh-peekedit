@@ -14,6 +14,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { WebServer } from '@deepseek-ai/dsh-host-webserver'
 import { FsError } from '@deepseek-ai/dsh-fs'
 import type { FsDirEntry, FsTarget } from '@deepseek-ai/dsh-fs'
+import type { SandboxExecutionPolicy } from '@deepseek-ai/dsh-sandbox'
+import type { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy'
 import type { SessionStore } from '@deepseek-ai/dsh-session'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import z from '@deepseek-ai/schemastery'
@@ -134,6 +136,21 @@ function browseRoot(ctx: Context, session: string | undefined, caps: ApiCaps): s
 }
 
 /**
+ * Resolve the per-session sandbox policy for a write, mirroring what the
+ * model-facing tools do: the session's mode override (or the deployment
+ * default) plus its workspace root. Absent a policy service (no sandbox),
+ * writes run unreserved like the bare provider.
+ */
+function sandboxPolicyFor(ctx: Context, session: string | undefined): SandboxExecutionPolicy | undefined {
+  const policy = ctx.get('sandboxPolicy') as SandboxPolicyService | undefined
+  if (policy === undefined) return undefined
+  if (session === undefined) return policy.resolve()
+  const sessions = ctx.get('sessions') as SessionStore | undefined
+  const found = sessions?.get(SessionId(session))
+  return found === undefined ? policy.resolve() : policy.resolve({ session: found })
+}
+
+/**
  * Resolve a UI-supplied relative path inside the root. Absolute inputs and
  * `..` segments are treated as relative-then-contained: nothing may escape.
  */
@@ -222,7 +239,13 @@ async function handleWrite(ctx: Context, caps: ApiCaps, server: WebServer, req: 
   if (info !== undefined && info.type !== 'file') {
     throw new FsError(`The path ${target.displayPath} is not a regular file.`, 'FS_NOT_REGULAR_FILE')
   }
-  const outcome = await ctx.fs.writeText(target, body.content)
+  const outcome = await ctx.fs.writeText(
+    target,
+    body.content,
+    undefined,
+    undefined,
+    sandboxPolicyFor(ctx, body.session),
+  )
   sendJson(res, 200, { path: target.displayPath, operation: outcome.operation })
 }
 
