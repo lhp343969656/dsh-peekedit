@@ -1,6 +1,6 @@
 {
   "name": "dsh-peekedit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Enhanced file tools for DeepSeek Harness: peek (windowed view), peek_edit (literal replace / insert), peek_write (create / overwrite).",
   "keywords": [
     "dsh",
