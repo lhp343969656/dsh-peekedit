@@ -286,37 +286,49 @@ export function FilePanel({ sessionId }: { sessionId: string }): React.ReactNode
   const [previewHeight, setPreviewHeight] = useState(240)
   const [dividerActive, setDividerActive] = useState(false)
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null)
+  // Monotonic request id: a stale listing/read response must not overwrite
+  // the state a newer navigation produced.
+  const requestSeq = useRef(0)
 
   const loadDir = useCallback(async (next: string): Promise<void> => {
+    const seq = ++requestSeq.current
     setLoading(true)
     setError(undefined)
+    // Select nothing immediately: the tree clears before the listing returns.
     setSelected(undefined)
     setEditing(false)
     try {
       const response = await listDir(sessionId, next)
+      if (seq !== requestSeq.current) return
       setRoot(response.root)
       setDir(response.path === response.root ? '' : next)
       setEntries(response.entries)
     } catch (cause) {
+      if (seq !== requestSeq.current) return
       setError(cause instanceof Error ? cause.message : String(cause))
       setEntries([])
     } finally {
-      setLoading(false)
+      if (seq === requestSeq.current) setLoading(false)
     }
   }, [sessionId])
 
   const loadFile = useCallback(async (path: string): Promise<void> => {
+    const seq = ++requestSeq.current
     setLoading(true)
     setError(undefined)
     setEditing(false)
+    // Select the file immediately — the row highlights before the content
+    // arrives, and a failed read still leaves the selection visible.
+    setSelected(path)
     try {
       const response = await readFile(sessionId, path)
-      setSelected(path)
+      if (seq !== requestSeq.current) return
       setContent(response.content)
     } catch (cause) {
+      if (seq !== requestSeq.current) return
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
-      setLoading(false)
+      if (seq === requestSeq.current) setLoading(false)
     }
   }, [sessionId])
 
