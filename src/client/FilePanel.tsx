@@ -1,11 +1,13 @@
 /**
  * File browser tool page for the right toolbar: directory navigation, file
- * preview, and editing over the host `/api/peekedit/*` endpoints. Rendered
- * inside the toolbar host's body; the host owns the header/collapse chrome.
+ * preview, and editing over the host `/api/peekedit/*` endpoints. The tree
+ * and the content area are separated by a draggable divider (vertical
+ * resize). Styling rides the Web Client's `--dsw-alias-*` theme tokens, so
+ * the page follows the active light/dark theme.
  * @module dsh-peekedit/client/FilePanel
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { listDir, readFile, writeFile } from './api.ts'
 import type { DirEntry } from './api.ts'
 
@@ -19,15 +21,20 @@ function segmentsOf(dir: string): string[] {
   return dir.length === 0 ? [] : dir.split('/')
 }
 
+/** Clamp the preview height into the draggable range. */
+function clampPreviewHeight(px: number): number {
+  return Math.min(560, Math.max(120, Math.round(px)))
+}
+
 const styles = {
   root: {
     display: 'flex',
     flexDirection: 'column' as const,
     flex: 1,
     minHeight: 0,
-    background: '#1e1f24',
-    color: '#e8e8ea',
-    fontFamily: 'system-ui, -apple-system, sans-serif',
+    background: 'var(--dsw-alias-bg-base)',
+    color: 'var(--dsw-alias-label-primary)',
+    fontFamily: 'var(--dsw-font-family)',
     fontSize: 13,
   },
   breadcrumbs: {
@@ -35,19 +42,25 @@ const styles = {
     alignItems: 'center',
     gap: 4,
     padding: '8px 12px',
-    borderBottom: '1px solid #2c2d33',
+    borderBottom: '1px solid var(--dsw-alias-border-l2)',
     flexWrap: 'wrap' as const,
   },
   crumb: {
     background: 'none',
     border: 'none',
-    color: '#7fb3e8',
+    color: 'var(--dsw-alias-state-business-primary)',
     cursor: 'pointer',
     padding: '2px 4px',
     fontSize: 12,
+    fontFamily: 'inherit',
   },
-  crumbSep: { color: '#55565e' },
-  body: { flex: 1, overflow: 'auto', padding: 8 },
+  crumbSep: { color: 'var(--dsw-alias-label-tertiary)' },
+  tree: {
+    flex: 1,
+    minHeight: 80,
+    overflow: 'auto',
+    padding: 6,
+  },
   row: {
     display: 'flex',
     alignItems: 'center',
@@ -57,52 +70,67 @@ const styles = {
     cursor: 'pointer',
     whiteSpace: 'nowrap' as const,
   },
-  rowSelected: { background: '#2f3644' },
+  rowSelected: { background: 'var(--dsw-alias-interactive-bg-active)' },
   rowName: { overflow: 'hidden', textOverflow: 'ellipsis' },
-  rowSize: { marginLeft: 'auto', color: '#6f7078', fontSize: 11 },
-  empty: { color: '#6f7078', padding: 16, textAlign: 'center' as const },
+  rowSize: { marginLeft: 'auto', color: 'var(--dsw-alias-label-tertiary)', fontSize: 11 },
+  empty: { color: 'var(--dsw-alias-label-tertiary)', padding: 16, textAlign: 'center' as const },
   error: {
     margin: 8,
     padding: '8px 10px',
     borderRadius: 4,
-    background: '#3d2326',
-    color: '#ff9d9d',
+    background: 'var(--dsw-static-red-50)',
+    color: 'var(--dsw-alias-state-error-primary)',
     whiteSpace: 'pre-wrap' as const,
   },
+  divider: {
+    height: 7,
+    cursor: 'row-resize',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    touchAction: 'none' as const,
+    flexShrink: 0,
+  },
+  dividerLine: {
+    width: '100%',
+    height: 1,
+    background: 'var(--dsw-alias-border-l2)',
+  },
   preview: {
-    margin: '0 8px 8px',
-    border: '1px solid #33343b',
-    borderRadius: 6,
     display: 'flex',
     flexDirection: 'column' as const,
-    maxHeight: '45%',
+    minHeight: 0,
+    borderTop: '1px solid var(--dsw-alias-border-l2)',
+    flexShrink: 0,
   },
   previewHeader: {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
     padding: '6px 10px',
-    borderBottom: '1px solid #2c2d33',
-    background: '#26272d',
+    background: 'var(--dsw-alias-bg-layer-2)',
+    borderBottom: '1px solid var(--dsw-alias-border-l2)',
   },
-  previewPath: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', color: '#b9bac0' },
+  previewPath: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--dsw-alias-label-secondary)' },
   button: {
-    background: '#3b6ea5',
+    background: 'var(--dsw-alias-state-business-primary)',
     border: 'none',
     color: '#fff',
     borderRadius: 4,
     padding: '4px 10px',
     cursor: 'pointer',
     fontSize: 12,
+    fontFamily: 'inherit',
   },
   buttonGhost: {
     background: 'none',
-    border: '1px solid #44454e',
-    color: '#d0d0d6',
+    border: '1px solid var(--dsw-alias-border-l3)',
+    color: 'var(--dsw-alias-label-secondary)',
     borderRadius: 4,
     padding: '4px 10px',
     cursor: 'pointer',
     fontSize: 12,
+    fontFamily: 'inherit',
   },
   pre: {
     margin: 0,
@@ -110,8 +138,9 @@ const styles = {
     overflow: 'auto',
     whiteSpace: 'pre' as const,
     fontSize: 12,
-    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-    color: '#d6d6dc',
+    fontFamily: 'var(--ds-font-family-code)',
+    color: 'var(--dsw-alias-label-primary)',
+    background: 'var(--dsw-alias-markdown-code-block)',
   },
   textarea: {
     margin: 0,
@@ -119,10 +148,9 @@ const styles = {
     border: 'none',
     outline: 'none',
     resize: 'none' as const,
-    minHeight: 240,
-    background: '#17181c',
-    color: '#e8e8ea',
-    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+    background: 'var(--dsw-specific-input-major)',
+    color: 'var(--dsw-alias-label-primary)',
+    fontFamily: 'var(--ds-font-family-code)',
     fontSize: 12,
     whiteSpace: 'pre' as const,
     flex: 1,
@@ -141,6 +169,8 @@ export function FilePanel({ sessionId }: { sessionId: string }): React.ReactNode
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | undefined>()
+  const [previewHeight, setPreviewHeight] = useState(240)
+  const dragRef = useRef<{ startY: number; startHeight: number } | null>(null)
 
   const loadDir = useCallback(async (next: string): Promise<void> => {
     setLoading(true)
@@ -200,6 +230,21 @@ export function FilePanel({ sessionId }: { sessionId: string }): React.ReactNode
     }
   }
 
+  // Vertical drag between the tree and the content area (pointer capture on
+  // the divider, mirroring the frame's column drag handles).
+  const onDividerPointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    dragRef.current = { startY: event.clientY, startHeight: previewHeight }
+  }
+  const onDividerPointerMove = (event: React.PointerEvent<HTMLDivElement>): void => {
+    if (dragRef.current === null) return
+    setPreviewHeight(clampPreviewHeight(dragRef.current.startHeight + (dragRef.current.startY - event.clientY)))
+  }
+  const onDividerPointerUp = (): void => {
+    dragRef.current = null
+  }
+
   const sorted = [...entries].sort((left, right) =>
     left.type === right.type
       ? left.name.localeCompare(right.name)
@@ -219,7 +264,7 @@ export function FilePanel({ sessionId }: { sessionId: string }): React.ReactNode
         ))}
       </div>
       {error !== undefined && <div style={styles.error}>{error}</div>}
-      <div style={styles.body}>
+      <div style={styles.tree}>
         {loading && entries.length === 0 ? <div style={styles.empty}>加载中…</div>
           : sorted.length === 0 ? <div style={styles.empty}>空目录</div>
             : sorted.map(entry => (
@@ -237,8 +282,18 @@ export function FilePanel({ sessionId }: { sessionId: string }): React.ReactNode
               </div>
             ))}
       </div>
+      <div
+        style={styles.divider}
+        title="拖拽调整区域大小"
+        onPointerDown={onDividerPointerDown}
+        onPointerMove={onDividerPointerMove}
+        onPointerUp={onDividerPointerUp}
+        onPointerCancel={onDividerPointerUp}
+      >
+        <div style={styles.dividerLine} />
+      </div>
       {selected !== undefined && (
-        <div style={styles.preview}>
+        <div style={{ ...styles.preview, height: previewHeight }}>
           <div style={styles.previewHeader}>
             <span style={styles.previewPath}>{selected}</span>
             {!editing && (

@@ -1,13 +1,14 @@
 /**
  * Right toolbar host: renders the active tool's page inside the details
- * column, with a slim header (tool title, collapse button). The rail
- * ({@link ToolbarRail}) is the collapsed-state entry point.
+ * column, with a slim header (tool title, tool tabs, collapse button). The
+ * rail ({@link ToolbarRail}) is the collapsed-state entry point. Styling
+ * rides the Web Client's `--dsw-alias-*` theme tokens.
  * @module dsh-peekedit/client/ToolbarHost
  */
 
 import { useSyncExternalStore } from 'react'
 import {
-  activeToolOf, collapseToolbar, getToolbarVersion, isToolbarExpanded, listTools, openToolbar, subscribeToolbar,
+  activeToolOf, getToolbarVersion, isToolbarExpanded, listTools, openToolbar, subscribeToolbar,
 } from './store.ts'
 
 const styles = {
@@ -15,9 +16,9 @@ const styles = {
     display: 'flex',
     flexDirection: 'column' as const,
     height: '100%',
-    background: '#1e1f24',
-    color: '#e8e8ea',
-    fontFamily: 'system-ui, -apple-system, sans-serif',
+    background: 'var(--dsw-alias-bg-base)',
+    color: 'var(--dsw-alias-label-primary)',
+    fontFamily: 'var(--dsw-font-family)',
     fontSize: 13,
   },
   header: {
@@ -25,26 +26,27 @@ const styles = {
     alignItems: 'center',
     gap: 8,
     padding: '10px 12px',
-    borderBottom: '1px solid #33343b',
-    background: '#26272d',
+    borderBottom: '1px solid var(--dsw-alias-border-l2)',
+    background: 'var(--dsw-alias-bg-layer-2)',
   },
   title: { fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap' as const },
   tabs: { display: 'flex', gap: 2, marginLeft: 4 },
   tab: {
     background: 'none',
     border: 'none',
-    color: '#9a9aa3',
+    color: 'var(--dsw-alias-label-tertiary)',
     fontSize: 12,
     padding: '3px 6px',
     borderRadius: 4,
     cursor: 'pointer',
+    fontFamily: 'inherit',
   },
-  tabActive: { background: '#33343b', color: '#e8e8ea' },
+  tabActive: { background: 'var(--dsw-alias-interactive-bg-active)', color: 'var(--dsw-alias-label-primary)' },
   close: {
     marginLeft: 'auto',
     background: 'none',
     border: 'none',
-    color: '#e8e8ea',
+    color: 'var(--dsw-alias-label-secondary)',
     fontSize: 15,
     cursor: 'pointer',
     padding: '2px 6px',
@@ -81,7 +83,7 @@ export function ToolbarHost({ sessionId, onClose }: { sessionId: string; onClose
         <button type="button" title="收起" style={styles.close} onClick={onClose}>»</button>
       </div>
       <div style={styles.body}>
-        {tool === undefined ? <div style={{ padding: 16, color: '#6f7078' }}>暂无工具</div> : tool.render(sessionId)}
+        {tool === undefined ? <div style={{ padding: 16, color: 'var(--dsw-alias-label-tertiary)' }}>暂无工具</div> : tool.render(sessionId)}
       </div>
     </div>
   )
@@ -102,8 +104,8 @@ export function ToolbarRail({ onOpen }: { onOpen: (toolId: string) => void }): R
         right: 0,
         bottom: 0,
         width: 52,
-        background: '#26272d',
-        borderLeft: '1px solid #33343b',
+        background: 'var(--dsw-specific-sidebar-fill)',
+        borderLeft: '1px solid var(--dsw-alias-border-l2)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -111,7 +113,7 @@ export function ToolbarRail({ onOpen }: { onOpen: (toolId: string) => void }): R
         gap: 4,
         pointerEvents: 'auto',
         zIndex: 900,
-        boxShadow: '-2px 0 8px rgba(0, 0, 0, 0.2)',
+        boxShadow: '-2px 0 8px rgba(0, 0, 0, 0.08)',
       }}
     >
       {listTools().map(tool => (
@@ -127,8 +129,12 @@ export function ToolbarRail({ onOpen }: { onOpen: (toolId: string) => void }): R
             border: 'none',
             fontSize: 18,
             cursor: 'pointer',
-            background: tool.id === active?.id ? '#3b6ea5' : 'transparent',
-            color: tool.id === active?.id ? '#fff' : '#d0d0d6',
+            background: tool.id === active?.id
+              ? 'var(--dsw-alias-interactive-bg-active)'
+              : 'transparent',
+            color: tool.id === active?.id
+              ? 'var(--dsw-alias-label-primary)'
+              : 'var(--dsw-alias-label-secondary)',
           }}
         >
           {tool.icon}
@@ -137,6 +143,3 @@ export function ToolbarRail({ onOpen }: { onOpen: (toolId: string) => void }): R
     </div>
   )
 }
-
-/** Convenience: collapse the toolbar (used by tool pages' close affordance). */
-export { collapseToolbar }

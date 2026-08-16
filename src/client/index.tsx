@@ -21,7 +21,7 @@ export const inject = ['slots', 'layout']
 /** Placeholder page for the upcoming tools panel. */
 function ToolsPlaceholder(): React.ReactNode {
   return (
-    <div style={{ padding: 16, color: '#9a9aa3', fontSize: 13 }}>
+    <div style={{ padding: 16, color: 'var(--dsw-alias-label-tertiary)', fontSize: 13, fontFamily: 'var(--dsw-font-family)' }}>
       🛠 工具面板开发中 — 后续将在这里展示模型工具与快捷操作。
     </div>
   )
