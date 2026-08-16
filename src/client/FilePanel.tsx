@@ -1,15 +1,15 @@
 /**
- * File browser drawer: directory navigation, file preview, and editing over
- * the host `/api/peekedit/*` endpoints. Rendered into `document.body` via a
- * portal so it overlays any session view.
- * @module dsh-peekedit/client/FileBrowser
+ * File browser panel for the Web Client's details (right) column: directory
+ * navigation, file preview, and editing over the host `/api/peekedit/*`
+ * endpoints. The panel occupies the details column; collapsing it closes the
+ * column and leaves the right-edge rail (`RailButton`) as the reopen handle.
+ * @module dsh-peekedit/client/FilePanel
  */
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
-import { createPortal } from 'react-dom'
 import { listDir, readFile, writeFile } from './api.ts'
 import type { DirEntry } from './api.ts'
-import { closeBrowser, getBrowserOpen, subscribeBrowser, toggleBrowser } from './store.ts'
+import { closePanel, isPanelOpen, openPanel, subscribePanel } from './store.ts'
 
 /** Combine a relative directory and an entry name into a child rel path. */
 function childPath(dir: string, name: string): string {
@@ -22,24 +22,12 @@ function segmentsOf(dir: string): string[] {
 }
 
 const styles = {
-  overlay: {
-    position: 'fixed' as const,
-    inset: 0,
-    background: 'rgba(0, 0, 0, 0.35)',
-    zIndex: 1000,
-  },
-  drawer: {
-    position: 'fixed' as const,
-    top: 0,
-    right: 0,
-    bottom: 0,
-    width: 480,
-    maxWidth: '90vw',
-    background: '#1e1f24',
-    color: '#e8e8ea',
+  root: {
     display: 'flex',
     flexDirection: 'column' as const,
-    boxShadow: '-8px 0 24px rgba(0, 0, 0, 0.4)',
+    height: '100%',
+    background: '#1e1f24',
+    color: '#e8e8ea',
     fontFamily: 'system-ui, -apple-system, sans-serif',
     fontSize: 13,
   },
@@ -51,7 +39,7 @@ const styles = {
     borderBottom: '1px solid #33343b',
     background: '#26272d',
   },
-  title: { fontWeight: 600, fontSize: 14 },
+  title: { fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap' as const },
   rootPath: {
     flex: 1,
     overflow: 'hidden',
@@ -60,13 +48,14 @@ const styles = {
     color: '#9a9aa3',
     fontSize: 12,
   },
-  close: {
+  iconButton: {
     background: 'none',
     border: 'none',
     color: '#e8e8ea',
-    fontSize: 16,
+    fontSize: 15,
     cursor: 'pointer',
     padding: '2px 6px',
+    lineHeight: 1,
   },
   breadcrumbs: {
     display: 'flex',
@@ -113,7 +102,7 @@ const styles = {
     borderRadius: 6,
     display: 'flex',
     flexDirection: 'column' as const,
-    minHeight: 200,
+    maxHeight: '45%',
   },
   previewHeader: {
     display: 'flex',
@@ -146,7 +135,6 @@ const styles = {
     margin: 0,
     padding: 10,
     overflow: 'auto',
-    maxHeight: 320,
     whiteSpace: 'pre' as const,
     fontSize: 12,
     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
@@ -158,24 +146,18 @@ const styles = {
     border: 'none',
     outline: 'none',
     resize: 'none' as const,
-    minHeight: 260,
+    minHeight: 240,
     background: '#17181c',
     color: '#e8e8ea',
     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
     fontSize: 12,
     whiteSpace: 'pre' as const,
-  },
-  footer: {
-    display: 'flex',
-    gap: 8,
-    justifyContent: 'flex-end',
-    padding: '8px 10px',
-    borderTop: '1px solid #2c2d33',
+    flex: 1,
   },
 }
 
-/** The file-browser drawer; mounted by the header action when open. */
-export function FileBrowser({ sessionId }: { sessionId: string }): React.ReactNode {
+/** The details-column file browser. */
+export function FilePanel({ sessionId, onClose }: { sessionId: string; onClose: () => void }): React.ReactNode {
   const [dir, setDir] = useState('')
   const [root, setRoot] = useState('')
   const [entries, setEntries] = useState<DirEntry[]>([])
@@ -250,93 +232,101 @@ export function FileBrowser({ sessionId }: { sessionId: string }): React.ReactNo
       ? left.name.localeCompare(right.name)
       : left.type === 'directory' ? -1 : 1)
 
-  return createPortal(
-    <div style={styles.overlay} onClick={closeBrowser}>
-      <div style={styles.drawer} onClick={event => event.stopPropagation()}>
-        <div style={styles.header}>
-          <span style={styles.title}>📁 文件浏览器</span>
-          <span style={styles.rootPath}>{root || '…'}</span>
-          <button style={styles.close} onClick={closeBrowser} title="关闭">✕</button>
-        </div>
-        <div style={styles.breadcrumbs}>
-          <button style={styles.crumb} onClick={() => void loadDir('')}>根目录</button>
-          {segmentsOf(dir).map((segment, index) => (
-            <span key={`${index}-${segment}`} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={styles.crumbSep}>/</span>
-              <button style={styles.crumb} onClick={() => void loadDir(segmentsOf(dir).slice(0, index + 1).join('/'))}>
-                {segment}
-              </button>
-            </span>
-          ))}
-        </div>
-        {error !== undefined && <div style={styles.error}>{error}</div>}
-        <div style={styles.body}>
-          {loading && entries.length === 0 ? <div style={styles.empty}>加载中…</div>
-            : sorted.length === 0 ? <div style={styles.empty}>空目录</div>
-              : sorted.map(entry => (
-                <div
-                  key={entry.name}
-                  style={selected === childPath(dir, entry.name) ? { ...styles.row, ...styles.rowSelected } : styles.row}
-                  onClick={() => openEntry(entry)}
-                  title={entry.type === 'directory' ? '打开目录' : '预览文件'}
-                >
-                  <span>{entry.type === 'directory' ? '📁' : '📄'}</span>
-                  <span style={styles.rowName}>{entry.name}</span>
-                  {entry.type === 'file' && entry.size !== undefined && (
-                    <span style={styles.rowSize}>{entry.size} B</span>
-                  )}
-                </div>
-              ))}
-        </div>
-        {selected !== undefined && (
-          <div style={styles.preview}>
-            <div style={styles.previewHeader}>
-              <span style={styles.previewPath}>{selected}</span>
-              {!editing && (
-                <button style={styles.button} onClick={() => { setDraft(content); setEditing(true) }}>编辑</button>
-              )}
-              {editing && (
-                <button style={styles.button} disabled={saving} onClick={() => void save()}>
-                  {saving ? '保存中…' : '保存'}
-                </button>
-              )}
-              {editing && (
-                <button style={styles.buttonGhost} onClick={() => setEditing(false)}>取消</button>
-              )}
-            </div>
-            {editing
-              ? <textarea style={styles.textarea} value={draft} onChange={event => setDraft(event.target.value)} spellCheck={false} />
-              : <pre style={styles.pre}>{content}</pre>}
-          </div>
-        )}
+  return (
+    <div style={styles.root}>
+      <div style={styles.header}>
+        <span style={styles.title}>📁 文件</span>
+        <span style={styles.rootPath}>{root || '…'}</span>
+        <button style={styles.iconButton} title="收起" onClick={onClose}>»</button>
       </div>
-    </div>,
-    document.body,
+      <div style={styles.breadcrumbs}>
+        <button style={styles.crumb} onClick={() => void loadDir('')}>根目录</button>
+        {segmentsOf(dir).map((segment, index) => (
+          <span key={`${index}-${segment}`} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={styles.crumbSep}>/</span>
+            <button style={styles.crumb} onClick={() => void loadDir(segmentsOf(dir).slice(0, index + 1).join('/'))}>
+              {segment}
+            </button>
+          </span>
+        ))}
+      </div>
+      {error !== undefined && <div style={styles.error}>{error}</div>}
+      <div style={styles.body}>
+        {loading && entries.length === 0 ? <div style={styles.empty}>加载中…</div>
+          : sorted.length === 0 ? <div style={styles.empty}>空目录</div>
+            : sorted.map(entry => (
+              <div
+                key={entry.name}
+                style={selected === childPath(dir, entry.name) ? { ...styles.row, ...styles.rowSelected } : styles.row}
+                onClick={() => openEntry(entry)}
+                title={entry.type === 'directory' ? '打开目录' : '预览文件'}
+              >
+                <span>{entry.type === 'directory' ? '📁' : '📄'}</span>
+                <span style={styles.rowName}>{entry.name}</span>
+                {entry.type === 'file' && entry.size !== undefined && (
+                  <span style={styles.rowSize}>{entry.size} B</span>
+                )}
+              </div>
+            ))}
+      </div>
+      {selected !== undefined && (
+        <div style={styles.preview}>
+          <div style={styles.previewHeader}>
+            <span style={styles.previewPath}>{selected}</span>
+            {!editing && (
+              <button style={styles.button} onClick={() => { setDraft(content); setEditing(true) }}>编辑</button>
+            )}
+            {editing && (
+              <button style={styles.button} disabled={saving} onClick={() => void save()}>
+                {saving ? '保存中…' : '保存'}
+              </button>
+            )}
+            {editing && (
+              <button style={styles.buttonGhost} onClick={() => setEditing(false)}>取消</button>
+            )}
+          </div>
+          {editing
+            ? <textarea style={styles.textarea} value={draft} onChange={event => setDraft(event.target.value)} spellCheck={false} />
+            : <pre style={styles.pre}>{content}</pre>}
+        </div>
+      )}
+    </div>
   )
 }
 
-/** The header action button toggling the browser drawer; renders the drawer when open. */
-export function HeaderActionButton({ sessionId }: { sessionId: string }): React.ReactNode {
-  const open = useSyncExternalStore(subscribeBrowser, getBrowserOpen)
+/** The collapsed rail on the right edge: the reopen handle for the panel. */
+export function DetailsRail({ onOpen }: { onOpen: () => void }): React.ReactNode {
+  const open = useSyncExternalStore(subscribePanel, isPanelOpen)
+  // The rail exists only while the panel is collapsed; the shell overlay
+  // layer is click-through, so the entry opts back into pointer events.
+  if (open) return null
   return (
-    <>
-      <button
-        type="button"
-        title="文件浏览器"
-        onClick={toggleBrowser}
-        style={{
-          background: open ? '#3b6ea5' : 'none',
-          border: '1px solid #44454e',
-          color: open ? '#fff' : '#d0d0d6',
-          borderRadius: 4,
-          padding: '3px 8px',
-          cursor: 'pointer',
-          fontSize: 12,
-        }}
-      >
-        📁 文件
-      </button>
-      {open && <FileBrowser sessionId={sessionId} />}
-    </>
+    <div
+      onClick={onOpen}
+      title="打开文件浏览器"
+      style={{
+        position: 'fixed',
+        right: 0,
+        top: '50%',
+        transform: 'translateY(-50%)',
+        width: 26,
+        padding: '14px 4px',
+        background: '#26272d',
+        border: '1px solid #33343b',
+        borderRight: 'none',
+        borderRadius: '8px 0 0 8px',
+        color: '#d0d0d6',
+        fontSize: 12,
+        cursor: 'pointer',
+        pointerEvents: 'auto',
+        zIndex: 900,
+        writingMode: 'vertical-rl',
+        textAlign: 'center',
+        userSelect: 'none',
+        boxShadow: '-2px 0 8px rgba(0, 0, 0, 0.25)',
+      }}
+    >
+      📁 文件
+    </div>
   )
 }

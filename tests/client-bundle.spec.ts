@@ -30,7 +30,7 @@ describe('client bundle format', () => {
   it('resolves platform words through require, bundling only its own code', () => {
     const code = bundle()
     const required = [...code.matchAll(/require\("([^"]+)"\)/g)].map(match => match[1])
-    expect(required).toEqual(expect.arrayContaining(['react', 'react-dom', 'react/jsx-runtime']))
+    expect(required).toEqual(expect.arrayContaining(['react', 'react/jsx-runtime']))
     for (const specifier of required) {
       expect(specifier).toMatch(/^react(-dom)?(\/.*)?$|^@deepseek-ai\//)
     }
@@ -57,27 +57,37 @@ describe('client bundle format', () => {
       apply: (ctx: unknown) => void
     }
     expect(exports.name).toBe('dsh-peekedit')
-    expect(exports.inject).toEqual(['slots'])
+    expect(exports.inject).toEqual(['slots', 'layout'])
     expect(typeof exports.apply).toBe('function')
 
-    // apply() injects into the session header actions slot and registers the
-    // file-browser entry.
-    let injectedKey: string | undefined
-    let registered: { name: string; id: string; order: number } | undefined
+    // apply() injects into the details column, the shell overlay, and the
+    // session header actions slot, registering the panel and its handles.
+    const injectedKeys: string[] = []
+    const registered: Record<string, unknown>[] = []
     const ctxStub = {
+      layout: {
+        openDetails: () => {},
+        closeDetails: () => {},
+      },
       slots: {
         inject: (key: string, factory: () => () => void) => {
-          injectedKey = key
+          injectedKeys.push(key)
           return factory()
         },
-        register: (options: { name: string; id: string; order: number }) => {
-          registered = options
+        register: (options: { name: string; id?: string; priority?: number }) => {
+          registered.push(options)
           return () => {}
         },
       },
     }
     exports.apply(ctxStub)
-    expect(injectedKey).toBe('conversation.session.header.actions')
-    expect(registered).toMatchObject({ name: 'conversation.session.header.actions', id: 'peekedit-file-browser' })
+    expect(injectedKeys).toEqual([
+      'details',
+      'shell.overlay',
+      'conversation.session.header.actions',
+    ])
+    expect(registered[0]).toMatchObject({ name: 'details', priority: -1 })
+    expect(registered[1]).toMatchObject({ name: 'shell.overlay', id: 'peekedit-details-rail' })
+    expect(registered[2]).toMatchObject({ name: 'conversation.session.header.actions', id: 'peekedit-file-browser' })
   })
 })
