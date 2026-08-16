@@ -13,6 +13,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import { FilePanel } from './FilePanel.tsx'
 import { FileIcon, ToolsIcon } from './icons.tsx'
+import { expandDetailsToMax } from './layout.ts'
 import { ToolbarHost, ToolbarRail } from './ToolbarHost.tsx'
 import { collapseToolbar, openToolbar, registerTool } from './store.ts'
 
@@ -70,6 +71,10 @@ export function apply(ctx: ClientContext): void {
       openTool: (toolId: string) => {
         openToolbar(toolId)
         ctx.layout.openDetails()
+        // Open at the maximum width: the layout service only opens at the
+        // contract default, so simulate one drag to the max after the column
+        // renders (best-effort; falls back to the default width).
+        requestAnimationFrame(() => { expandDetailsToMax() })
       },
     }),
   }, ({ openTool }: { openTool: (toolId: string) => void }) => <ToolbarRail onOpen={openTool} />))

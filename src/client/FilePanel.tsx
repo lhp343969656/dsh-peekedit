@@ -39,6 +39,11 @@ function sanitizePreviewHeight(px: number): number {
   return Math.max(0, Math.round(px))
 }
 
+/** Resolve the preview-area style: null height means the default 50/50 split. */
+function previewStyle(height: number | null, base: Record<string, unknown>): Record<string, unknown> {
+  return height === null ? { ...base, flex: 1 } : { ...base, height }
+}
+
 const styles = {
   root: {
     display: 'flex',
@@ -302,7 +307,7 @@ export function FilePanel({ sessionId }: { sessionId: string }): React.ReactNode
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | undefined>()
-  const [previewHeight, setPreviewHeight] = useState(240)
+  const [previewHeight, setPreviewHeight] = useState<number | null>(null)
   const [dividerActive, setDividerActive] = useState(false)
   const dragRef = useRef<{ startY: number; startHeight: number } | null>(null)
   // Monotonic request id: a stale listing/read response must not overwrite
@@ -395,7 +400,11 @@ export function FilePanel({ sessionId }: { sessionId: string }): React.ReactNode
   const onDividerPointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
     event.preventDefault()
     event.currentTarget.setPointerCapture(event.pointerId)
-    dragRef.current = { startY: event.clientY, startHeight: previewHeight }
+    // A drag starts from the current rendered height: the flex half-split has
+    // no px basis, so fall back to half the panel's client height.
+    const current = previewHeight ?? Math.max(0, event.currentTarget.parentElement?.clientHeight ?? 0) / 2
+    dragRef.current = { startY: event.clientY, startHeight: current }
+    setPreviewHeight(current)
     setDividerActive(true)
   }
   const onDividerPointerMove = (event: React.PointerEvent<HTMLDivElement>): void => {
@@ -473,7 +482,7 @@ export function FilePanel({ sessionId }: { sessionId: string }): React.ReactNode
         <div style={dividerActive ? { ...styles.dividerPill, ...styles.dividerPillVisible } : styles.dividerPill} />
       </div>
       {selected !== undefined && (
-        <div style={{ ...styles.preview, height: previewHeight }}>
+        <div style={previewStyle(previewHeight, styles.preview)}>
           <div style={styles.previewHeader}>
             <span style={styles.previewTitle}>
               <span style={styles.rowIcon}><DocumentIcon /></span>
