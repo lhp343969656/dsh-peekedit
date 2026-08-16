@@ -20,11 +20,21 @@ afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true })
 })
 
-async function setup(config: PeekeditApi.Config = {}, options: { sandbox?: boolean } = {}) {
-  // Writable sandbox roots always include the system temp dir, so the
+async function makeRoot(sandbox: boolean) {
+  // Writable sandbox roots always include the platform temp dirs, so the
   // sandbox scenario builds its trees OUTSIDE tmpdir to make refusals real.
-  const baseDir = options.sandbox ? dirname(tmpdir()) : tmpdir()
-  const root = await mkdtemp(join(baseDir, 'dsh-peekedit-api-'))
+  // dirname(tmpdir()) is that neighbor on macOS/Windows but / on Linux
+  // (writable by root only), where we fall back to the working directory.
+  if (!sandbox) return await mkdtemp(join(tmpdir(), 'dsh-peekedit-api-'))
+  try {
+    return await mkdtemp(join(dirname(tmpdir()), 'dsh-peekedit-api-'))
+  } catch {
+    return await mkdtemp(join(process.cwd(), 'dsh-peekedit-api-'))
+  }
+}
+
+async function setup(config: PeekeditApi.Config = {}, options: { sandbox?: boolean } = {}) {
+  const root = await makeRoot(options.sandbox ?? false)
   roots.push(root)
   const ctx = new Context()
   contexts.push(ctx)
