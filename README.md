@@ -3,6 +3,8 @@
 [![npm version](https://img.shields.io/npm/v/dsh-peekedit.svg)](https://www.npmjs.com/package/dsh-peekedit)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+**English** · [简体中文](README.zh-CN.md)
+
 Enhanced file tools **and a file browser** for [DeepSeek Harness](https://github.com/deepseek-ai/DeepSeek-Harness) (`dsh`).
 
 Source: <https://github.com/lhp343969656/dsh-peekedit> · Issues: <https://github.com/lhp343969656/dsh-peekedit/issues>
