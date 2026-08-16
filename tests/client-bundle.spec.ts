@@ -60,8 +60,8 @@ describe('client bundle format', () => {
     expect(exports.inject).toEqual(['slots', 'layout'])
     expect(typeof exports.apply).toBe('function')
 
-    // apply() injects into the details column, the shell overlay, and the
-    // session header actions slot, registering the panel and its handles.
+    // apply() injects into the details column and the shell overlay,
+    // registering the toolbar host and its collapsed rail.
     const injectedKeys: string[] = []
     const registered: Record<string, unknown>[] = []
     const ctxStub = {
@@ -84,10 +84,8 @@ describe('client bundle format', () => {
     expect(injectedKeys).toEqual([
       'details',
       'shell.overlay',
-      'conversation.session.header.actions',
     ])
     expect(registered[0]).toMatchObject({ name: 'details', priority: -1 })
-    expect(registered[1]).toMatchObject({ name: 'shell.overlay', id: 'peekedit-details-rail' })
-    expect(registered[2]).toMatchObject({ name: 'conversation.session.header.actions', id: 'peekedit-file-browser' })
+    expect(registered[1]).toMatchObject({ name: 'shell.overlay', id: 'peekedit-toolbar-rail' })
   })
 })

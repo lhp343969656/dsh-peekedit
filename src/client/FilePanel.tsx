@@ -1,15 +1,13 @@
 /**
- * File browser panel for the Web Client's details (right) column: directory
- * navigation, file preview, and editing over the host `/api/peekedit/*`
- * endpoints. The panel occupies the details column; collapsing it closes the
- * column and leaves the right-edge rail (`RailButton`) as the reopen handle.
+ * File browser tool page for the right toolbar: directory navigation, file
+ * preview, and editing over the host `/api/peekedit/*` endpoints. Rendered
+ * inside the toolbar host's body; the host owns the header/collapse chrome.
  * @module dsh-peekedit/client/FilePanel
  */
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { listDir, readFile, writeFile } from './api.ts'
 import type { DirEntry } from './api.ts'
-import { closePanel, isPanelOpen, openPanel, subscribePanel } from './store.ts'
 
 /** Combine a relative directory and an entry name into a child rel path. */
 function childPath(dir: string, name: string): string {
@@ -25,37 +23,12 @@ const styles = {
   root: {
     display: 'flex',
     flexDirection: 'column' as const,
-    height: '100%',
+    flex: 1,
+    minHeight: 0,
     background: '#1e1f24',
     color: '#e8e8ea',
     fontFamily: 'system-ui, -apple-system, sans-serif',
     fontSize: 13,
-  },
-  header: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    padding: '10px 12px',
-    borderBottom: '1px solid #33343b',
-    background: '#26272d',
-  },
-  title: { fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap' as const },
-  rootPath: {
-    flex: 1,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap' as const,
-    color: '#9a9aa3',
-    fontSize: 12,
-  },
-  iconButton: {
-    background: 'none',
-    border: 'none',
-    color: '#e8e8ea',
-    fontSize: 15,
-    cursor: 'pointer',
-    padding: '2px 6px',
-    lineHeight: 1,
   },
   breadcrumbs: {
     display: 'flex',
@@ -156,8 +129,8 @@ const styles = {
   },
 }
 
-/** The details-column file browser. */
-export function FilePanel({ sessionId, onClose }: { sessionId: string; onClose: () => void }): React.ReactNode {
+/** The file browser tool page. */
+export function FilePanel({ sessionId }: { sessionId: string }): React.ReactNode {
   const [dir, setDir] = useState('')
   const [root, setRoot] = useState('')
   const [entries, setEntries] = useState<DirEntry[]>([])
@@ -234,11 +207,6 @@ export function FilePanel({ sessionId, onClose }: { sessionId: string; onClose: 
 
   return (
     <div style={styles.root}>
-      <div style={styles.header}>
-        <span style={styles.title}>📁 文件</span>
-        <span style={styles.rootPath}>{root || '…'}</span>
-        <button style={styles.iconButton} title="收起" onClick={onClose}>»</button>
-      </div>
       <div style={styles.breadcrumbs}>
         <button style={styles.crumb} onClick={() => void loadDir('')}>根目录</button>
         {segmentsOf(dir).map((segment, index) => (
@@ -290,43 +258,6 @@ export function FilePanel({ sessionId, onClose }: { sessionId: string; onClose: 
             : <pre style={styles.pre}>{content}</pre>}
         </div>
       )}
-    </div>
-  )
-}
-
-/** The collapsed rail on the right edge: the reopen handle for the panel. */
-export function DetailsRail({ onOpen }: { onOpen: () => void }): React.ReactNode {
-  const open = useSyncExternalStore(subscribePanel, isPanelOpen)
-  // The rail exists only while the panel is collapsed; the shell overlay
-  // layer is click-through, so the entry opts back into pointer events.
-  if (open) return null
-  return (
-    <div
-      onClick={onOpen}
-      title="打开文件浏览器"
-      style={{
-        position: 'fixed',
-        right: 0,
-        top: '50%',
-        transform: 'translateY(-50%)',
-        width: 26,
-        padding: '14px 4px',
-        background: '#26272d',
-        border: '1px solid #33343b',
-        borderRight: 'none',
-        borderRadius: '8px 0 0 8px',
-        color: '#d0d0d6',
-        fontSize: 12,
-        cursor: 'pointer',
-        pointerEvents: 'auto',
-        zIndex: 900,
-        writingMode: 'vertical-rl',
-        textAlign: 'center',
-        userSelect: 'none',
-        boxShadow: '-2px 0 8px rgba(0, 0, 0, 0.25)',
-      }}
-    >
-      📁 文件
     </div>
   )
 }

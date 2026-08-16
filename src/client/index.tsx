@@ -1,91 +1,75 @@
 /**
- * Client half of dsh-peekedit: mounts the file browser into the Web Client's
- * details (right) column, with the header action and the collapsed right-edge
- * rail as open/close handles. Value imports stay within the platform word
- * table (react); everything else is type-only and erased at build.
+ * Client half of dsh-peekedit: hosts the right toolbar — a tool registry with
+ * the file browser as its first tool, the details (right) column as the
+ * expanded surface, and a collapsed icon rail on the right edge (mirroring
+ * the left sidebar's collapsed rail). Value imports stay within the platform
+ * word table (react); everything else is type-only and erased at build.
  * @module dsh-peekedit/client
  */
 
-import { useSyncExternalStore } from 'react'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
-import { DetailsRail, FilePanel } from './FilePanel.tsx'
-import { closePanel, isPanelOpen, openPanel, subscribePanel } from './store.ts'
+import { FilePanel } from './FilePanel.tsx'
+import { ToolbarHost, ToolbarRail } from './ToolbarHost.tsx'
+import { collapseToolbar, openToolbar, registerTool } from './store.ts'
 
 export const name = 'dsh-peekedit'
 export const inject = ['slots', 'layout']
 
-/** The header action toggling the panel (opens/closes the details column). */
-function HeaderAction({ openFilePanel, closeFilePanel }: { openFilePanel: () => void; closeFilePanel: () => void }): React.ReactNode {
-  const open = useSyncExternalStore(subscribePanel, isPanelOpen)
+/** Placeholder page for the upcoming tools panel. */
+function ToolsPlaceholder(): React.ReactNode {
   return (
-    <button
-      type="button"
-      title="文件浏览器"
-      onClick={() => (isPanelOpen() ? closeFilePanel() : openFilePanel())}
-      style={{
-        background: open ? '#3b6ea5' : 'none',
-        border: '1px solid #44454e',
-        color: open ? '#fff' : '#d0d0d6',
-        borderRadius: 4,
-        padding: '3px 8px',
-        cursor: 'pointer',
-        fontSize: 12,
-      }}
-    >
-      📁 文件
-    </button>
+    <div style={{ padding: 16, color: '#9a9aa3', fontSize: 13 }}>
+      🛠 工具面板开发中 — 后续将在这里展示模型工具与快捷操作。
+    </div>
   )
 }
 
-/** Mount the panel and its handles once their slots are declared. */
+/** Mount the toolbar host, its rail, and the built-in tools. */
 export function apply(ctx: ClientContext): void {
-  // The details (right) column. Shadows the shipped tool-details panel
-  // (priority 0): lowest priority renders, so -1 wins while the official
-  // entry stays composed but inert.
+  registerTool({
+    id: 'files',
+    icon: '📁',
+    label: '文件',
+    render: sessionId => <FilePanel sessionId={sessionId} />,
+  })
+  registerTool({
+    id: 'tools',
+    icon: '🛠',
+    label: '工具',
+    render: () => <ToolsPlaceholder />,
+  })
+
+  // The expanded surface: the details (right) column. Shadows the shipped
+  // tool-details panel (priority 0): lowest priority renders, so -1 wins
+  // while the official entry stays composed but inert.
   ctx.slots.inject('details', () => ctx.slots.register({
     name: 'details',
     priority: -1,
     inject: () => ({
       onClose: () => {
-        closePanel()
+        collapseToolbar()
         ctx.layout.closeDetails()
       },
     }),
   }, ({ sessionId, onClose }: { sessionId: string; onClose: () => void }) => (
-    <FilePanel sessionId={sessionId} onClose={onClose} />
+    <ToolbarHost sessionId={sessionId} onClose={onClose} />
   )))
 
-  // The collapsed rail on the right edge — the reopen handle while the panel
-  // is closed (the shell overlay layer is click-through; the rail opts in).
+  // The collapsed entry: a 52px icon rail on the right edge, one button per
+  // tool, mirroring the left sidebar's collapsed rail. The shell overlay
+  // layer is click-through; the rail opts back into pointer events.
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay',
-    id: 'peekedit-details-rail',
+    id: 'peekedit-toolbar-rail',
     order: 100,
     inject: () => ({
-      openFilePanel: () => {
-        openPanel()
+      openTool: (toolId: string) => {
+        openToolbar(toolId)
         ctx.layout.openDetails()
       },
     }),
-  }, ({ openFilePanel }: { openFilePanel: () => void }) => <DetailsRail onOpen={openFilePanel} />))
-
-  // The session header button, an always-visible open/close handle.
-  ctx.slots.inject('conversation.session.header.actions', () => ctx.slots.register({
-    name: 'conversation.session.header.actions',
-    id: 'peekedit-file-browser',
-    order: 100,
-    inject: () => ({
-      openFilePanel: () => {
-        openPanel()
-        ctx.layout.openDetails()
-      },
-      closeFilePanel: () => {
-        closePanel()
-        ctx.layout.closeDetails()
-      },
-    }),
-  }, HeaderAction))
+  }, ({ openTool }: { openTool: (toolId: string) => void }) => <ToolbarRail onOpen={openTool} />))
 }
