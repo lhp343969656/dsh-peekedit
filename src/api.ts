@@ -239,12 +239,14 @@ async function handleWrite(ctx: Context, caps: ApiCaps, server: WebServer, req: 
   if (info !== undefined && info.type !== 'file') {
     throw new FsError(`The path ${target.displayPath} is not a regular file.`, 'FS_NOT_REGULAR_FILE')
   }
+  const policy = sandboxPolicyFor(ctx, body.session)
+  console.log(`[peekedit-write] session=${String(body.session)} root=${root} policy=${policy === undefined ? 'none' : JSON.stringify(policy)} path=${body.path}`)
   const outcome = await ctx.fs.writeText(
     target,
     body.content,
     undefined,
     undefined,
-    sandboxPolicyFor(ctx, body.session),
+    policy,
   )
   sendJson(res, 200, { path: target.displayPath, operation: outcome.operation })
 }

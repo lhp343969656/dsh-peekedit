@@ -45,8 +45,14 @@ describe('client bundle format', () => {
       },
     }
     // The factory body runs at materialization; react/dom values are only
-    // touched at render time, so empty stubs suffice for the import phase.
-    const requireStub = () => ({})
+    // touched at render time, except jsx which tool-icon elements call during
+    // apply() — a minimal jsx stub suffices.
+    const requireStub = (spec: string): unknown => {
+      if (spec === 'react/jsx-runtime') {
+        return { jsx: (type: unknown, props: unknown) => ({ type, props }) }
+      }
+      return {}
+    }
     new Function('window', code)(windowStub)
     expect(captured).toBeDefined()
     expect(captured?.id).toBe('dsh-peekedit')

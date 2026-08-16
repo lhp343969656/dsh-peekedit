@@ -1,8 +1,9 @@
 /**
  * Right toolbar host: renders the active tool's page inside the details
- * column, with a slim header (tool title, tool tabs, collapse button). The
- * rail ({@link ToolbarRail}) is the collapsed-state entry point. Styling
- * rides the Web Client's `--dsw-alias-*` theme tokens.
+ * column. The slim header is a tab strip — each tab shows its icon followed
+ * by its label, and clicking switches tools directly (no separate title
+ * line). The rail ({@link ToolbarRail}) is the collapsed-state entry point.
+ * Styling rides the Web Client's `--dsw-alias-*` theme tokens.
  * @module dsh-peekedit/client/ToolbarHost
  */
 
@@ -24,22 +25,24 @@ const styles = {
   header: {
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
-    padding: '10px 12px',
+    gap: 2,
+    padding: '6px 8px',
     borderBottom: '1px solid var(--dsw-alias-border-l2)',
     background: 'var(--dsw-alias-bg-layer-2)',
   },
-  title: { fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap' as const },
-  tabs: { display: 'flex', gap: 2, marginLeft: 4 },
   tab: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
     background: 'none',
     border: 'none',
     color: 'var(--dsw-alias-label-tertiary)',
     fontSize: 12,
-    padding: '3px 6px',
-    borderRadius: 4,
+    padding: '5px 10px',
+    borderRadius: 6,
     cursor: 'pointer',
     fontFamily: 'inherit',
+    whiteSpace: 'nowrap' as const,
   },
   tabActive: { background: 'var(--dsw-alias-interactive-bg-active)', color: 'var(--dsw-alias-label-primary)' },
   close: {
@@ -64,22 +67,18 @@ export function ToolbarHost({ sessionId, onClose }: { sessionId: string; onClose
   return (
     <div style={styles.root}>
       <div style={styles.header}>
-        <span style={styles.title}>{tool?.icon ?? ''} {tool?.label ?? '工具栏'}</span>
-        {listTools().length > 1 && (
-          <span style={styles.tabs}>
-            {listTools().map(candidate => (
-              <button
-                key={candidate.id}
-                type="button"
-                title={candidate.label}
-                style={candidate.id === tool?.id ? { ...styles.tab, ...styles.tabActive } : styles.tab}
-                onClick={() => openToolbar(candidate.id)}
-              >
-                {candidate.icon}
-              </button>
-            ))}
-          </span>
-        )}
+        {listTools().map(candidate => (
+          <button
+            key={candidate.id}
+            type="button"
+            title={candidate.label}
+            style={candidate.id === tool?.id ? { ...styles.tab, ...styles.tabActive } : styles.tab}
+            onClick={() => openToolbar(candidate.id)}
+          >
+            {candidate.icon}
+            <span>{candidate.label}</span>
+          </button>
+        ))}
         <button type="button" title="收起" style={styles.close} onClick={onClose}>»</button>
       </div>
       <div style={styles.body}>
@@ -127,7 +126,9 @@ export function ToolbarRail({ onOpen }: { onOpen: (toolId: string) => void }): R
             height: 40,
             borderRadius: 8,
             border: 'none',
-            fontSize: 18,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             cursor: 'pointer',
             background: tool.id === active?.id
               ? 'var(--dsw-alias-interactive-bg-active)'

@@ -12,6 +12,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import { FilePanel } from './FilePanel.tsx'
+import { FileIcon, ToolsIcon } from './icons.tsx'
 import { ToolbarHost, ToolbarRail } from './ToolbarHost.tsx'
 import { collapseToolbar, openToolbar, registerTool } from './store.ts'
 
@@ -31,13 +32,13 @@ function ToolsPlaceholder(): React.ReactNode {
 export function apply(ctx: ClientContext): void {
   registerTool({
     id: 'files',
-    icon: '📁',
+    icon: <FileIcon />,
     label: '文件',
     render: sessionId => <FilePanel sessionId={sessionId} />,
   })
   registerTool({
     id: 'tools',
-    icon: '🛠',
+    icon: <ToolsIcon />,
     label: '工具',
     render: () => <ToolsPlaceholder />,
   })

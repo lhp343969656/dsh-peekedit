@@ -14,9 +14,9 @@ import type { ReactNode } from 'react'
 export interface ToolbarTool {
   /** Stable tool id (also the rail icon key). */
   id: string
-  /** Rail icon (emoji or short glyph). */
-  icon: string
-  /** Tool label (rail tooltip / panel title). */
+  /** Line-style icon element shown in the rail and tabs. */
+  icon: ReactNode
+  /** Tool label (rail tooltip / tab text). */
   label: string
   /** Render the tool page for one session. */
   render(sessionId: string): ReactNode
