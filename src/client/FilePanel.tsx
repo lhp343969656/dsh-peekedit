@@ -271,6 +271,22 @@ function FileRow({
   )
 }
 
+/** The "parent directory" row at the top of a nested listing. */
+function ParentRow({ onOpen }: { onOpen: () => void }): React.ReactNode {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <div
+      style={hovered ? { ...styles.row, ...styles.parentRow, ...styles.rowHover } : { ...styles.row, ...styles.parentRow }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={onOpen}
+    >
+      <span style={styles.rowIcon}><ArrowUpIcon /></span>
+      <span style={styles.rowName}>上级目录</span>
+    </div>
+  )
+}
+
 /** The file browser tool page. */
 export function FilePanel({ sessionId }: { sessionId: string }): React.ReactNode {
   const [dir, setDir] = useState('')
@@ -290,13 +306,16 @@ export function FilePanel({ sessionId }: { sessionId: string }): React.ReactNode
   // the state a newer navigation produced.
   const requestSeq = useRef(0)
 
-  const loadDir = useCallback(async (next: string): Promise<void> => {
+  const loadDir = useCallback(async (next: string, keepSelection = false): Promise<void> => {
     const seq = ++requestSeq.current
     setLoading(true)
     setError(undefined)
-    // Select nothing immediately: the tree clears before the listing returns.
-    setSelected(undefined)
-    setEditing(false)
+    // Select nothing immediately unless the caller wants the selection kept
+    // (e.g. refreshing the listing after a save).
+    if (!keepSelection) {
+      setSelected(undefined)
+      setEditing(false)
+    }
     try {
       const response = await listDir(sessionId, next)
       if (seq !== requestSeq.current) return
@@ -336,8 +355,17 @@ export function FilePanel({ sessionId }: { sessionId: string }): React.ReactNode
 
   const openEntry = (entry: DirEntry): void => {
     const path = childPath(dir, entry.name)
-    if (entry.type === 'directory') void loadDir(path)
-    else if (entry.type === 'file') void loadFile(path)
+    if (entry.type === 'directory') {
+      void loadDir(path)
+      return
+    }
+    // Clicking the already-selected file clears the selection.
+    if (selected === path) {
+      setSelected(undefined)
+      setEditing(false)
+      return
+    }
+    void loadFile(path)
   }
 
   const save = async (): Promise<void> => {
@@ -348,8 +376,9 @@ export function FilePanel({ sessionId }: { sessionId: string }): React.ReactNode
       await writeFile(sessionId, selected, draft)
       setContent(draft)
       setEditing(false)
-      // The listing sizes are stale after an edit; refresh the current dir.
-      await loadDir(dir)
+      // The listing sizes are stale after an edit; refresh the current dir
+      // while keeping the selection and the open preview.
+      await loadDir(dir, true)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
@@ -415,15 +444,7 @@ export function FilePanel({ sessionId }: { sessionId: string }): React.ReactNode
             : (
               <>
                 {dir.length > 0 && (
-                  <div
-                    style={{ ...styles.row, ...styles.parentRow }}
-                    onMouseEnter={event => { event.currentTarget.style.background = 'var(--dsw-alias-interactive-bg-hover)' }}
-                    onMouseLeave={event => { event.currentTarget.style.background = 'transparent' }}
-                    onClick={() => void loadDir(parentOf(dir))}
-                  >
-                    <span style={styles.rowIcon}><ArrowUpIcon /></span>
-                    <span style={styles.rowName}>上级目录</span>
-                  </div>
+                  <ParentRow onOpen={() => void loadDir(parentOf(dir))} />
                 )}
                 {sorted.map(entry => (
                   <FileRow
