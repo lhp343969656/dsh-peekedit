@@ -99,7 +99,10 @@ const styles = {
   rowHover: { background: 'var(--dsw-alias-interactive-bg-hover)' },
   rowSelected: {
     background: 'var(--dsw-alias-interactive-bg-active)',
-    borderLeftColor: 'var(--dsw-alias-state-business-primary)',
+    // Full borderLeft declaration (not shorthand + borderLeftColor): the
+    // paired form can resolve to the text color when the theme variable
+    // is unavailable in some contexts.
+    borderLeft: '3px solid var(--dsw-alias-state-business-primary)',
   },
   rowIcon: { display: 'flex', flexShrink: 0, color: 'var(--dsw-alias-label-tertiary)' },
   rowIconDir: { color: 'var(--dsw-alias-state-business-primary)' },
